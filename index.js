@@ -131,6 +131,10 @@ const refetchLocation = (req) => {
     })
 }
 
+app.get('/', (req, res) => {
+  res.status(200).json({ message: "Successfully added bot" });
+});
+
 app.post('/get-lunch', (req, res) => {
   Lunch.countDocuments().exec((err, count) => {
     const random = Math.floor(Math.random() * count)
