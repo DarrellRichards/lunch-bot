@@ -222,4 +222,4 @@ app.post('/add-lunch', (req, res) => {
   res.status(200).json();
 });
 
-app.listen(3000, () => console.log('Gator app listening on port 3000!'));
+app.listen(process.env.PORT || 5000, () => console.log(`Gator app listening on port ${process.env.PORT}!`));
