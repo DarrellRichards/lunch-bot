@@ -3,18 +3,24 @@ const app = express();
 const fs = require('fs');
 const fileName = require('./lunch.json');
 const bodyParser = require('body-parser');
+const axios = require('axios');
 const db = require('./config/db');
 const Lunch = require('./schemas/lunch.modal');
+const Team = require('./schemas/team.modal');
 
 const { WebClient } = require('@slack/client');
-
-const web = new WebClient('xoxb-17007469173-587992230581-ERvzboUyXvyKu29im82kiZqe');
+let web;
 let fetchCount = 0;
 let selectedLocation = null;
 const lunchPlaces = fileName;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+const setBotToken = (token) => {
+  web = new WebClient(token);
+  return web;
+}
 
 const withinTheLast = (date) => {
     const dateOffset = (24*60*60*1000) * 14;
@@ -23,6 +29,14 @@ const withinTheLast = (date) => {
 
     return date > anHourAgo;
 }
+
+app.use(async(req, res, next) => {
+  const team_id = req.body.team_id;
+  const results = await Team.findOne({ team_id: team_id });
+  if (results === null) { next(); }
+  await setBotToken(results.bot_token);
+  next();
+})
 
 const refetchLocation = (req) => {
   Lunch.countDocuments().exec((err, count) => {
@@ -131,12 +145,20 @@ const refetchLocation = (req) => {
     })
 }
 
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   res.status(200).json({ message: "Successfully added bot" });
+  const token = await axios.post(`https://slack.com/api/oauth.access?client_id=17007469173.588732505815&client_secret=600d44b316cb0c2ac0ed1c595db1f999&code=${req.query.code}`)
+  const newTeam = new Team({ team_name: token.data.team_name, team_id: token.data.team_id, bot_token: token.data.bot.bot_access_token });
+  await newTeam.save();
 });
 
 app.post('/get-lunch', (req, res) => {
-  Lunch.countDocuments().exec((err, count) => {
+  Lunch.countDocuments().exec( async(err, count) => {
+    if (count === 0) {
+      res.status(200)
+      await web.chat.postMessage({ channel: req.body.channel_id, text: 'Looks as if we have no lunchs. Say What!', user: req.body.user_id});
+      return;
+    }
     const random = Math.floor(Math.random() * count)
     Lunch.findOne().skip(random).exec(
       async (err, result) => {
